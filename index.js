@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config(); // 保留以支持其他可能的 .env 配置，但私钥从 tokens.txt 读取
 const { ethers } = require('ethers');
 const fs = require('fs');
 const { HttpsProxyAgent } = require('https-proxy-agent');
@@ -178,7 +178,7 @@ const getMulticallData = (pair, amount, walletAddress) => {
 
     if (pair.from === 'WPHRS' && pair.to === 'USDC') {
       const data = ethers.AbiCoder.defaultAbiCoder().encode(
-        ['address', 'address', 'uint256', 'address', 'uint256', 'uint256', 'uint256'],
+        ['address',  ['address', 'address', 'uint256', 'address', 'uint256', 'uint256', 'uint256'],
         [
           tokens.WPHRS,
           tokens.USDC,
@@ -536,10 +536,21 @@ const processWallet = async (privateKey, proxies, walletIndex, totalWallets, bat
 
 const main = async () => {
   const proxies = loadProxies();
-  const privateKeys = Object.values(process.env)
-    .filter(pk => pk && ethers.isHexString(pk, 32));
-  if (!privateKeys.length) {
-    logger.error('未在 .env 中找到有效的私钥。请检查 .env 文件格式');
+
+  // 从 tokens.txt 读取私钥
+  let privateKeys;
+  try {
+    privateKeys = fs.readFileSync('tokens.txt', 'utf8')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && ethers.isHexString(line, 32)); // 确保是有效的 32 字节私钥
+    if (!privateKeys.length) {
+      logger.error('tokens.txt 中没有有效的私钥。请确保每行一个有效的私钥');
+      process.exit(1);
+    }
+    logger.info(`成功加载 ${privateKeys.length} 个私钥`);
+  } catch (error) {
+    logger.error(`无法读取 tokens.txt: ${error.message}`);
     process.exit(1);
   }
 

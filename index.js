@@ -373,7 +373,7 @@ const performSwap = async (wallet, provider, index, jwt, proxy) => {
     const multicallData = getMulticallData(pair, amount, wallet.address);
 
     if (!multicallData || multicallData.length === 0 || multicallData.some(data => !data || data === '0x')) {
-      logger.error(`无效或空的多重调用数据 ${pair.from} -> ${pair.to}`);
+      logger.error(`[✗] 第 ${index + 1} 次兑换失败`);
       return;
     }
 
@@ -384,7 +384,7 @@ const performSwap = async (wallet, provider, index, jwt, proxy) => {
         from: wallet.address,
       });
     } catch (error) {
-      logger.error(`第 ${index + 1} 次兑换估算燃气失败: ${error.message}`);
+      logger.error(`[✗] 第 ${index + 1} 次兑换失败`);
       return;
     }
 
@@ -404,13 +404,7 @@ const performSwap = async (wallet, provider, index, jwt, proxy) => {
 
     await verifyTask(wallet, proxy, jwt, receipt.hash);
   } catch (error) {
-    logger.error(`第 ${index + 1} 次兑换失败: ${error.message}`);
-    if (error.transaction) {
-      logger.error(`交易详情: ${JSON.stringify(error.transaction, null, 2)}`);
-    }
-    if (error.receipt) {
-      logger.error(`收据: ${JSON.stringify(error.receipt, null, 2)}`);
-    }
+    logger.error(`[✗] 第 ${index + 1} 次兑换失败`);
   }
 };
 
@@ -447,13 +441,7 @@ const transferPHRS = async (wallet, provider, index, jwt, proxy) => {
 
     await verifyTask(wallet, proxy, jwt, receipt.hash);
   } catch (error) {
-    logger.error(`第 ${index + 1} 次转账失败: ${error.message}`);
-    if (error.transaction) {
-      logger.error(`交易详情: ${JSON.stringify(error.transaction, null, 2)}`);
-    }
-    if (error.receipt) {
-      logger.error(`收据: ${JSON.stringify(error.receipt, null, 2)}`);
-    }
+    logger.error(`[✗] 第 ${index + 1} 次转账失败`);
   }
 };
 
@@ -476,7 +464,7 @@ const wrapPHRS = async (wallet, provider, index, jwt, proxy) => {
     try {
       estimatedGas = await wphrsContract.deposit.estimateGas({ value: amountWei });
     } catch (error) {
-      logger.error(`第 ${index + 1} 次包装估算燃气失败: ${error.message}`);
+      logger.error(`[✗] 第 ${index + 1} 次包装失败`);
       return;
     }
 
@@ -497,13 +485,7 @@ const wrapPHRS = async (wallet, provider, index, jwt, proxy) => {
 
     await verifyTask(wallet, proxy, jwt, receipt.hash);
   } catch (error) {
-    logger.error(`第 ${index + 1} 次包装失败: ${error.message}`);
-    if (error.transaction) {
-      logger.error(`交易详情: ${JSON.stringify(error.transaction, null, 2)}`);
-    }
-    if (error.receipt) {
-      logger.error(`收据: ${JSON.stringify(error.receipt, null, 2)}`);
-    }
+    logger.error(`[✗] 第 ${index + 1} 次包装失败`);
   }
 };
 
@@ -717,7 +699,7 @@ const addLiquidity = async (wallet, provider, index, jwt, proxy) => {
     try {
       estimatedGas = await positionManager.mint.estimateGas(mintParams, { from: wallet.address });
     } catch (error) {
-      logger.error(`第 ${index + 1} 次流动性添加估算燃气失败: ${error.message}`);
+      logger.error(`[✗] 第 ${index + 1} 次流动性添加失败`);
       return;
     }
 
@@ -738,13 +720,7 @@ const addLiquidity = async (wallet, provider, index, jwt, proxy) => {
 
     await verifyTask(wallet, proxy, jwt, receipt.hash);
   } catch (error) {
-    logger.error(`第 ${index + 1} 次流动性添加失败: ${error.message}`);
-    if (error.transaction) {
-      logger.error(`交易详情: ${JSON.stringify(error.transaction, null, 2)}`);
-    }
-    if (error.receipt) {
-      logger.error(`收据: ${JSON.stringify(error.receipt, null, 2)}`);
-    }
+    logger.error(`[✗] 第 ${index + 1} 次流动性添加失败`);
   }
 };
 
@@ -761,60 +737,6 @@ const countdown = async (minutes) => {
   process.stdout.write('\r倒计时完成！重新开始进程...\n');
 };
 
-const processWallet = async (privateKey, proxies, index) => {
-  const proxy = proxies.length ? getRandomProxy(proxies) : null;
-  const provider = setupProvider(proxy);
-  const wallet = new ethers.Wallet(privateKey, provider);
-
-  logger.wallet(`使用钱包 ${index + 1}: ${wallet.address}`);
-
-  await claimFaucet(wallet, proxy);
-
-  const jwt = await performCheckIn(wallet, proxy);
-  if (jwt) {
-    await getUserInfo(wallet, proxy, jwt);
-  } else {
-    logger.error('由于签到失败，跳过用户信息获取');
-  }
-
-  const numTransfers = 10;
-  const numWraps = 10;
-  const numSwaps = 10;
-  const numLPs = 10;
-
-  console.log(`\n${colors.cyan}------------------------${colors.reset}`);
-  console.log(`${colors.cyan}转账 - 钱包 ${wallet.address}${colors.reset}`);
-  console.log(`${colors.cyan}------------------------${colors.reset}`);
-  for (let i = 0; i < numTransfers; i++) {
-    await transferPHRS(wallet, provider, i, jwt, proxy);
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-  }
-
-  console.log(`\n${colors.cyan}------------------------${colors.reset}`);
-  console.log(`${colors.cyan}包装 - 钱包 ${wallet.address}${colors.reset}`);
-  console.log(`${colors.cyan}------------------------${colors.reset}`);
-  for (let i = 0; i < numWraps; i++) {
-    await wrapPHRS(wallet, provider, i, jwt, proxy);
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-  }
-
-  console.log(`\n${colors.cyan}------------------------${colors.reset}`);
-  console.log(`${colors.cyan}兑换 - 钱包 ${wallet.address}${colors.reset}`);
-  console.log(`${colors.cyan}------------------------${colors.reset}`);
-  for (let i = 0; i < numSwaps; i++) {
-    await performSwap(wallet, provider, i, jwt, proxy);
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-  }
-
-  console.log(`\n${colors.cyan}------------------------${colors.reset}`);
-  console.log(`${colors.cyan}添加流动性 - 钱包 ${wallet.address}${colors.reset}`);
-  console.log(`${colors.cyan}------------------------${colors.reset}`);
-  for (let i = 0; i < numLPs; i++) {
-    await addLiquidity(wallet, provider, i, jwt, proxy);
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
-  }
-};
-
 const main = async () => {
   logger.banner();
 
@@ -822,40 +744,156 @@ const main = async () => {
   logger.info(`循环之间的延迟设置为 ${delayMinutes} 分钟`);
 
   const proxies = loadProxies();
-  const privateKeys = [
-    process.env.PRIVATE_KEY_1,
-    process.env.PRIVATE_KEY_2,
-    // 支持更多私钥，例如 PRIVATE_KEY_3 到 PRIVATE_KEY_30
-  ].filter(pk => pk);
+  const privateKeys = Object.keys(process.env)
+    .filter(key => key.startsWith('PRIVATE_KEY_'))
+    .sort((a, b) => {
+        const numA = parseInt(a.split('_')[2], 10);
+        const numB = parseInt(b.split('_')[2], 10);
+        return numA - numB;
+    })
+    .map(key => process.env[key]);
 
   if (!privateKeys.length) {
     logger.error('在 .env 中未找到私钥');
     return;
   }
+  
+  const concurrency = 5; // 设置并发数量
+  logger.info(`并发数量设置为 ${concurrency}`);
 
-  const concurrency = 3; // 每次并发处理 3 个钱包
-  logger.info(`每次并发处理 ${concurrency} 个钱包`);
+  const numTransfers = 10;
+  const numWraps = 10;
+  const numSwaps = 10;
+  const numLPs = 10;
 
   while (true) {
-    logger.info(`开始处理 ${privateKeys.length} 个钱包，共 ${Math.ceil(privateKeys.length / concurrency)} 轮`);
+    logger.info(`开始新一轮处理 ${privateKeys.length} 个钱包...`);
 
-    // 分批处理钱包
-    for (let i = 0; i < privateKeys.length; i += concurrency) {
-      const batch = privateKeys.slice(i, i + concurrency);
-      logger.info(`处理第 ${Math.floor(i / concurrency) + 1} 轮，包含 ${batch.length} 个钱包`);
+    const walletData = privateKeys.map((pk, index) => {
+        const proxy = proxies.length ? getRandomProxy(proxies) : null;
+        const provider = setupProvider(proxy);
+        const wallet = new ethers.Wallet(pk, provider);
+        logger.wallet(`初始化钱包 ${index + 1}: ${wallet.address}`);
+        return { wallet, provider, proxy, jwt: null, index };
+    });
 
-      // 并发执行当前批次的钱包
-      const walletPromises = batch.map((privateKey, index) =>
-        processWallet(privateKey, proxies, i + index).catch(error => {
-          logger.error(`钱包 ${i + index + 1} 处理失败: ${error.message}`);
-        })
-      );
-
-      // 等待当前批次所有钱包完成
-      await Promise.all(walletPromises);
-      logger.success(`第 ${Math.floor(i / concurrency) + 1} 轮完成`);
+    // --- 1. 领水 ---
+    logger.info('\n--- 阶段 1: 领取水龙头 ---');
+    for (let i = 0; i < walletData.length; i += concurrency) {
+        const batch = walletData.slice(i, i + concurrency);
+        logger.step(`处理批次 ${Math.floor(i / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+        await Promise.all(batch.map(({ wallet, proxy, index }) =>
+          claimFaucet(wallet, proxy).catch(error => {
+            logger.error(`钱包 ${index + 1} (${wallet.address}) 领水失败: ${error.message}`);
+          })
+        ));
     }
+    logger.success('所有钱包领水操作完成');
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
 
+    // --- 2. 签到 & 获取JWT ---
+    logger.info('\n--- 阶段 2: 每日签到 ---');
+    for (let i = 0; i < walletData.length; i += concurrency) {
+        const batch = walletData.slice(i, i + concurrency);
+        logger.step(`处理批次 ${Math.floor(i / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+        await Promise.all(batch.map(async (data) => {
+          try {
+            data.jwt = await performCheckIn(data.wallet, data.proxy);
+          } catch (error) {
+            logger.error(`钱包 ${data.index + 1} (${data.wallet.address}) 签到失败: ${error.message}`);
+            data.jwt = null;
+          }
+        }));
+    }
+    logger.success('所有钱包签到操作完成');
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+
+    // --- 3. 获取用户信息 ---
+    logger.info('\n--- 阶段 3: 获取用户信息 ---');
+    for (let i = 0; i < walletData.length; i += concurrency) {
+        const batch = walletData.slice(i, i + concurrency);
+        logger.step(`处理批次 ${Math.floor(i / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+        await Promise.all(batch.map(({ wallet, proxy, jwt, index }) => {
+          if (jwt) {
+            return getUserInfo(wallet, proxy, jwt).catch(error => {
+              logger.error(`钱包 ${index + 1} (${wallet.address}) 获取用户信息失败: ${error.message}`);
+            });
+          }
+          logger.warn(`钱包 ${index + 1} (${wallet.address}) 因JWT无效跳过获取用户信息`);
+          return Promise.resolve();
+        }));
+    }
+    logger.success('所有钱包获取用户信息操作完成');
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+
+    // --- 4. PHRS 转账 ---
+    logger.info(`\n--- 阶段 4: 执行 ${numTransfers} 轮 PHRS 转账 ---`);
+    for (let i = 0; i < numTransfers; i++) {
+        logger.step(`转账轮次 ${i + 1}/${numTransfers}`);
+        for (let j = 0; j < walletData.length; j += concurrency) {
+            const batch = walletData.slice(j, j + concurrency);
+            logger.step(`  处理批次 ${Math.floor(j / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+            await Promise.all(batch.map(({ wallet, provider, jwt, proxy, index }) =>
+                transferPHRS(wallet, provider, i, jwt, proxy).catch(error => {
+                    logger.error(`钱包 ${index + 1} (${wallet.address}) 第 ${i+1} 次转账失败: ${error.message}`);
+                })
+            ));
+        }
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    }
+    logger.success('所有钱包转账操作完成');
+
+    // --- 5. 包装 PHRS ---
+    logger.info(`\n--- 阶段 5: 执行 ${numWraps} 轮包装 PHRS ---`);
+    for (let i = 0; i < numWraps; i++) {
+        logger.step(`包装轮次 ${i + 1}/${numWraps}`);
+        for (let j = 0; j < walletData.length; j += concurrency) {
+            const batch = walletData.slice(j, j + concurrency);
+            logger.step(`  处理批次 ${Math.floor(j / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+            await Promise.all(batch.map(({ wallet, provider, jwt, proxy, index }) =>
+                wrapPHRS(wallet, provider, i, jwt, proxy).catch(error => {
+                    logger.error(`钱包 ${index + 1} (${wallet.address}) 第 ${i+1} 次包装失败: ${error.message}`);
+                })
+            ));
+        }
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    }
+    logger.success('所有钱包包装操作完成');
+
+    // --- 6. 兑换 ---
+    logger.info(`\n--- 阶段 6: 执行 ${numSwaps} 轮兑换 ---`);
+    for (let i = 0; i < numSwaps; i++) {
+        logger.step(`兑换轮次 ${i + 1}/${numSwaps}`);
+        for (let j = 0; j < walletData.length; j += concurrency) {
+            const batch = walletData.slice(j, j + concurrency);
+            logger.step(`  处理批次 ${Math.floor(j / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+            await Promise.all(batch.map(({ wallet, provider, jwt, proxy, index }) =>
+                performSwap(wallet, provider, i, jwt, proxy).catch(error => {
+                    logger.error(`钱包 ${index + 1} (${wallet.address}) 第 ${i+1} 次兑换失败: ${error.message}`);
+                })
+            ));
+        }
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    }
+    logger.success('所有钱包兑换操作完成');
+
+    // --- 7. 添加流动性 ---
+    logger.info(`\n--- 阶段 7: 执行 ${numLPs} 轮添加流动性 ---`);
+    for (let i = 0; i < numLPs; i++) {
+        logger.step(`流动性轮次 ${i + 1}/${numLPs}`);
+        for (let j = 0; j < walletData.length; j += concurrency) {
+            const batch = walletData.slice(j, j + concurrency);
+            logger.step(`  处理批次 ${Math.floor(j / concurrency) + 1}/${Math.ceil(walletData.length / concurrency)}...`);
+            await Promise.all(batch.map(({ wallet, provider, jwt, proxy, index }) =>
+                addLiquidity(wallet, provider, i, jwt, proxy).catch(error => {
+                    logger.error(`钱包 ${index + 1} (${wallet.address}) 第 ${i+1} 次添加流动性失败: ${error.message}`);
+                })
+            ));
+        }
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    }
+    logger.success('所有钱包添加流动性操作完成');
+    
     logger.success('所有钱包的所有操作已完成！');
     await countdown(delayMinutes);
   }
